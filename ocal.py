@@ -26,7 +26,7 @@ if 'stage_prev' not in st.session_state:
 # 2. 左側邊欄 (Sidebar)
 # ==========================================
 with st.sidebar:
-    st.header("🎛️ 參數控制台")
+    st.header("🎛 # 參數控制台")
     stage = st.selectbox("產品所處階段", ["🌱 初期 (Launch)", "🚀 成長期 (Growth)", "🌳 成熟期 (Mature)"], key="stage_select")
 
     if stage != st.session_state.stage_prev:
@@ -47,11 +47,17 @@ with st.sidebar:
         mkt_share = st.number_input("預期市佔率 (%)", value=1.0, step=0.1, format="%.2f")
         target_rev = mkt_size * (mkt_share / 100)
 
-    st.subheader("2. 核心成本與雜費 (%)")
+    st.subheader("2. 核心成本與雜費")
     price = st.number_input("客單價 Price (USD)", value=30.0)
     cogs = st.number_input("單件成本 (COGS+頭程)", value=0.0)
+    
+    # 動態計算單件費用並顯示在 Sidebar
     amz_fee_rate = st.number_input("亞馬遜抽成率 (%)", value=15.0, step=1.0)
+    st.caption(f"💡 單件抽成費用: **${(price * amz_fee_rate / 100):.2f}**")
+    
     ret_rate = st.number_input("預估退貨率 (%)", value=5.0, step=1.0)
+    st.caption(f"💡 單件退貨耗損: **${(price * ret_rate / 100):.2f}**")
+    
     fba_fee = st.number_input("單件 FBA 配送費 (USD)", value=7.0)
     storage_fee = st.number_input("單件倉儲分倉費 (USD)", value=1.5)
     
