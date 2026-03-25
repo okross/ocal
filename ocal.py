@@ -77,7 +77,7 @@ tacos = round((total_budget / target_rev * 100), 2) if target_rev > 0 else 0
 # ==========================================
 # 4. 主畫面 Dashboard
 # ==========================================
-st.title("📊 歐可跨境計算器 (Okross Calculator)")
+st.title("📊 亞馬遜專案數據推演 Dashboard")
 
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("目標營收", f"${target_rev:,.2f}")
