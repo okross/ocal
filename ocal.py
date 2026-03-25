@@ -6,9 +6,9 @@ import plotly.graph_objects as go
 # ==========================================
 # 1. 頁面設定
 # ==========================================
-st.set_page_config(page_title="歐可跨境計算器 (Okross Calculator)", layout="wide")
+st.set_page_config(page_title="亞馬遜專案數據推演 Dashboard by 歐可", layout="wide")
 
-# 加大表格字體的 CSS
+# 加大表格與指標字體的 CSS
 st.markdown("""
     <style>
     .stTable { font-size: 20px !important; }
@@ -26,7 +26,7 @@ if 'stage_prev' not in st.session_state:
 # 2. 左側邊欄 (Sidebar)
 # ==========================================
 with st.sidebar:
-    st.header("🎛️ 專案參數控制台")
+    st.header("🎛️ 參數控制台")
     stage = st.selectbox("產品所處階段", ["🌱 初期 (Launch)", "🚀 成長期 (Growth)", "🌳 成熟期 (Mature)"], key="stage_select")
 
     if stage != st.session_state.stage_prev:
@@ -40,18 +40,20 @@ with st.sidebar:
 
     st.subheader("1. 營收目標設定")
     target_mode = st.radio("設定方式", ["🎯 直接輸入營收目標", "🍰 頂層市場份額推算"])
-    
     if target_mode == "🎯 直接輸入營收目標":
         target_rev = st.number_input("月營收目標 (USD)", value=30000.0, step=1000.0)
     else:
         mkt_size = st.number_input("類目大盤月營收 (USD)", value=1000000.0)
         mkt_share = st.number_input("預期市佔率 (%)", value=1.0, step=0.1, format="%.2f")
         target_rev = mkt_size * (mkt_share / 100)
-        st.info(f"📊 自動換算目標營收: ${target_rev:,.2f}")
 
-    st.subheader("2. 核心成本")
+    st.subheader("2. 核心成本與雜費 (%)")
     price = st.number_input("客單價 Price (USD)", value=30.0)
     cogs = st.number_input("單件成本 (COGS+頭程)", value=0.0)
+    amz_fee_rate = st.number_input("亞馬遜抽成率 (%)", value=15.0, step=1.0)
+    ret_rate = st.number_input("預估退貨率 (%)", value=5.0, step=1.0)
+    fba_fee = st.number_input("單件 FBA 配送費 (USD)", value=7.0)
+    storage_fee = st.number_input("單件倉儲分倉費 (USD)", value=1.5)
     
     st.markdown("---")
     st.subheader("3. 流量與廣告參數")
@@ -62,7 +64,7 @@ with st.sidebar:
     ppc_ratio = st.slider("站內 PPC 佔總預算比 (%)", 0, 100, 70)
 
 # ==========================================
-# 3. 運算邏輯 (確保小數點兩位)
+# 3. 運算邏輯
 # ==========================================
 total_units = round(target_rev / price, 2) if price > 0 else 0
 ad_units = round(total_units * (ad_ratio / 100), 2)
@@ -103,7 +105,7 @@ with col_l:
 with col_r:
     st.write("### 🍰 預算配置比例")
     fig_p = px.pie(
-        names=["站內 PPC", "站外/促銷"], 
+        names=["站內 PPC", "站外/行銷"], 
         values=[ppc_spend, mkt_spend], 
         hole=0.4,
         color_discrete_sequence=['#FF9900', '#146EB4']
@@ -112,22 +114,20 @@ with col_r:
     fig_p.update_layout(font=dict(size=18), height=450)
     st.plotly_chart(fig_p, use_container_width=True)
 
-# 損益試算表 (分開廣告與行銷)
+# 損益試算表
 st.write("### 💵 專案 P&L 損益試算 (月度)")
-f_ref = round(target_rev * 0.15, 2)
-f_fba = round(total_units * 7.0, 2)
-f_st = round(total_units * 1.5, 2)
-f_ret = round(target_rev * 0.05, 2)
+f_ref = round(target_rev * (amz_fee_rate / 100), 2)
+f_fba = round(total_units * fba_fee, 2)
+f_st = round(total_units * storage_fee, 2)
+f_ret = round(target_rev * (ret_rate / 100), 2)
 total_cogs = round(total_units * cogs, 2)
 net_profit = round(target_rev - (total_cogs + f_ref + f_fba + f_st + f_ret + ppc_spend + mkt_spend), 2)
 
 pl_df = pd.DataFrame({
-    "項目": ["總營收", "產品成本", "平台抽成(15%)", "FBA費用", "倉儲分倉", "退貨耗損(5%)", "站內廣告(PPC)", "站外行銷(Marketing)"],
+    "項目": ["總營收", "產品成本", f"平台抽成({amz_fee_rate}%)", "FBA費用", "倉儲分倉", f"退貨耗損({ret_rate}%)", "站內廣告(PPC)", "站外行銷(Marketing)"],
     "金額": [target_rev, -total_cogs, -f_ref, -f_fba, -f_st, -f_ret, -ppc_spend, -mkt_spend]
 })
 pl_df["佔比"] = (abs(pl_df["金額"]) / target_rev * 100).map("{:.2f}%".format)
-
-# 使用格式化確保表格數字美觀
 st.table(pl_df.style.format({"金額": "{:,.2f}"}))
 
 # 底部淨利看板
@@ -137,6 +137,3 @@ st.markdown(f"""
     <h3 style='margin:10px 0 0 0; color: #D1E8FF;'>獲利率 (Net Margin): {(net_profit/target_rev*100 if target_rev > 0 else 0):.2f}%</h3>
 </div>
 """, unsafe_allow_html=True)
-
-if cogs == 0:
-    st.info("💡 提醒：產品成本 (COGS) 為 0，以上淨利包含產品採購成本。")
