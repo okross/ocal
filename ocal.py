@@ -28,9 +28,9 @@ st.markdown("""
         margin-right: auto;
     }
 
-    /* P&L 表格與底部看板設定為 70% 寬度並置中 */
+    /* P&L 表格與底部看板設定為 80% 寬度並置中 */
     [data-testid="stTable"], div[style*="background-color"] {
-        max-width: 70% !important;
+        max-width: 80% !important;
         margin-left: auto !important;
         margin-right: auto !important;
     }
@@ -45,7 +45,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 初始化動態參數 (略，保持不變)
+# 初始化動態參數
 if 'stage_prev' not in st.session_state:
     st.session_state.stage_prev = "🌱 初期 (Launch)"
     st.session_state.current_ctr, st.session_state.current_cvr = 0.35, 5.0
@@ -67,6 +67,7 @@ with st.sidebar:
             st.session_state.current_ctr, st.session_state.current_cvr, st.session_state.current_ad_ratio, st.session_state.current_cpc = 0.75, 15.0, 30, 0.8
         st.session_state.stage_prev = stage
 
+    st.subheader("1. 營收目標設定")
     target_mode = st.radio("設定方式", ["🎯 直接輸入營收目標", "🍰 頂層市場份額推算"])
     if target_mode == "🎯 直接輸入營收目標":
         target_rev = st.number_input("月營收目標 (USD)", value=30000.0, step=1000.0)
@@ -75,14 +76,22 @@ with st.sidebar:
         mkt_share = st.number_input("預期市佔率 (%)", value=1.0, step=0.1, format="%.2f")
         target_rev = mkt_size * (mkt_share / 100)
 
+    st.subheader("2. 核心成本與雜費")
     price = st.number_input("客單價 Price (USD)", value=30.0)
     cogs = st.number_input("單件成本 (COGS+頭程)", value=0.0)
+    
+    # --- 補回動態單件顯示 ---
     amz_fee_rate = st.number_input("亞馬遜抽成率 (%)", value=15.0, step=1.0)
+    st.caption(f"💡 單件抽成費用: **${(price * amz_fee_rate / 100):.2f}**")
+    
     ret_rate = st.number_input("預估退貨率 (%)", value=5.0, step=1.0)
+    st.caption(f"💡 單件退貨耗損: **${(price * ret_rate / 100):.2f}**")
+    
     fba_fee = st.number_input("單件 FBA 配送費 (USD)", value=7.0)
     storage_fee = st.number_input("單件倉儲分倉費 (USD)", value=1.5)
     
     st.markdown("---")
+    st.subheader("3. 流量與廣告參數")
     cpc = st.number_input("預估 CPC (USD)", value=st.session_state.current_cpc, step=0.1)
     ctr = st.number_input("預估 CTR (%)", value=st.session_state.current_ctr, step=0.05)
     cvr = st.number_input("預估 CVR (%)", value=st.session_state.current_cvr, step=0.5)
@@ -105,10 +114,10 @@ tacos = round((total_budget / target_rev * 100), 2) if target_rev > 0 else 0
 # 4. 主畫面 Dashboard
 # ==========================================
 st.title("📊 亞馬遜專案數據推演 Dashboard by 歐可")
-st.write("") # 增加一個換行空間
+st.write("") 
 st.write("") 
 
-# 第一層：核心指標 (90% 寬度)
+# 第一層指標 (CSS 已設為 90%)
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("目標營收", f"${target_rev:,.2f}")
 c2.metric("日均銷量", f"{total_units/30:,.2f} 件")
@@ -117,7 +126,7 @@ c4.metric("預估 TACOS", f"{tacos:.2f}%")
 
 st.divider()
 
-# 第二層：核心假設 (90% 寬度)
+# 第二層核心假設 (CSS 已設為 90%)
 st.markdown("<h3 style='text-align: center;'>⚙️ 核心經營假設 (Core Assumptions)</h3>", unsafe_allow_html=True)
 a1, a2, a3, a4, a5 = st.columns(5)
 a1.metric("客單價", f"${price:.2f}", delta="Price", delta_color="off")
@@ -128,7 +137,7 @@ a5.metric("廣告佔比", f"{ad_ratio}%", delta="Ad Ratio", delta_color="off")
 
 st.divider()
 
-# 第三層：圖表 (80% 寬度)
+# 第三層圖表 (CSS 已設為 80%)
 col_l, col_r = st.columns(2)
 with col_l:
     st.write("### 🛒 流量漏斗 (預估廣告路徑)")
@@ -149,7 +158,7 @@ with col_r:
     fig_p.update_layout(font=dict(size=16), height=400)
     st.plotly_chart(fig_p, use_container_width=True)
 
-# 第四層：損益表 (70% 寬度)
+# 第四層損益表 (CSS 已設為 70%)
 st.markdown("<h3 style='text-align: center;'>💵 專案 P&L 損益試算 (月度)</h3>", unsafe_allow_html=True)
 f_ref = round(target_rev*(amz_fee_rate/100), 2)
 f_fba = round(total_units*fba_fee, 2)
