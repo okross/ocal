@@ -4,65 +4,39 @@ import plotly.express as px
 import plotly.graph_objects as go
 
 # ==========================================
-# 1. 頁面設定與自定義 CSS (徹底鎖定樣式)
+# 1. 頁面設定與 UI 比例優化 (支援深淺模式)
 # ==========================================
 st.set_page_config(page_title="亞馬遜專案數據推演 Dashboard by 歐可", layout="wide")
 
 st.markdown("""
     <style>
-    /* 全域字體鎖定：使用標準無襯線字體，確保 0 不帶點 */
-    html, body, [class*="css"] {
-        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif !important;
+    /* 1. 強制所有指標數值使用標準字體，解決「帶點的 0」問題，但不鎖死顏色以支援深淺模式 */
+    [data-testid="stMetricValue"] {
+        font-family: 'Source Sans Pro', 'Helvetica Neue', Helvetica, Arial, sans-serif !important;
+        font-size: 32px !important;
+    }
+    
+    /* 2. 上半段指標與文字區塊設定為 90% 寬度並置中 */
+    [data-testid="stMetric"], .stMarkdown, .stDivider {
+        max-width: 90%;
+        margin-left: auto;
+        margin-right: auto;
     }
 
-    /* 自定義指標卡片樣式 */
-    .metric-card {
-        background-color: #f8f9fa;
-        padding: 15px;
-        border-radius: 10px;
-        text-align: center;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-        margin-bottom: 10px;
-    }
-    .metric-label {
-        font-size: 14px;
-        color: #586069;
-        margin-bottom: 5px;
-    }
-    .metric-value {
-        font-size: 26px;
-        font-weight: 700;
-        color: #1f2328;
-    }
-
-    /* 表格寬度優化 (80%) */
-    [data-testid="stTable"] {
+    /* 3. 中間圖表與底部 P&L 統一設定為 80% 寬度並置中 */
+    [data-testid="column"], [data-testid="stTable"], div[style*="background-color"] {
         max-width: 80% !important;
-        margin: auto !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
     }
 
-    /* 確保所有容器居中 */
-    .block-container {
-        max-width: 90% !important;
-        margin: auto;
-    }
-
+    /* 4. 列印優化 */
     @media print {
         [data-testid="stSidebar"], header, footer { display: none !important; }
+        .main .block-container { max-width: 100% !important; padding: 0 !important; margin: 0 !important; }
         div[style*="background-color"] { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
     }
     </style>
-    """, unsafe_allow_html=True)
-
-# ------------------------------------------
-# 輔助函式：產生自定義指標卡片
-# ------------------------------------------
-def custom_metric(label, value):
-    st.markdown(f"""
-        <div class="metric-card">
-            <div class="metric-label">{label}</div>
-            <div class="metric-value">{value}</div>
-        </div>
     """, unsafe_allow_html=True)
 
 # 初始化動態參數
@@ -106,6 +80,9 @@ with st.sidebar:
     amz_fee_rate = st.number_input("亞馬遜抽成率 (%)", value=15.0)
     st.caption(f"💡 單件抽成: **${(price * amz_fee_rate / 100):.2f}**")
     
+    ret_rate = st.number_input("預估退貨率 (%)", value=5.0)
+    st.caption(f"💡 單件退貨耗損: **${(price * ret_rate / 100):.2f}**")
+    
     st.markdown("---")
     cpc = st.number_input("預估 CPC (USD)", value=st.session_state.current_cpc)
     ctr = st.number_input("預估 CTR (%)", value=st.session_state.current_ctr)
@@ -141,27 +118,25 @@ tacos = (total_budget / target_rev * 100) if target_rev > 0 else 0
 # ==========================================
 st.title("📊 亞馬遜專案數據推演 Dashboard by 歐可")
 st.write("")
+st.write("")
 
-# 第一層：指標 (使用自定義 HTML，解決字體與顏色問題)
+# 第一層：指標 (回歸原生 st.metric)
 c1, c2, c3, c4 = st.columns(4)
-with c1: custom_metric("目標總營收", f"${target_rev:,.2f}")
-with c2: custom_metric("營收結構 (Ad / Org)", f"${ad_rev:,.0f} / ${org_rev:,.0f}")
-with c3: custom_metric("總行銷預算", f"${total_budget:,.2f}")
-with c4: custom_metric("預估 TACOS", f"{tacos:.2f}%")
+c1.metric("目標總營收", f"${target_rev:,.2f}")
+c2.metric("營收結構 (Ad/Org)", f"${ad_rev:,.0f} / ${org_rev:,.0f}")
+c3.metric("總行銷預算", f"${total_budget:,.2f}")
+c4.metric("預估 TACOS", f"{tacos:.2f}%")
 
 st.divider()
 
-# 第二層：核心假設 (使用自定義 HTML)
-st.markdown("<h3 style='text-align: center; margin-bottom: 20px;'>⚙️ 核心經營假設 (Core Assumptions)</h3>", unsafe_allow_html=True)
+# 第二層：核心假設
+st.markdown("<h3 style='text-align: center;'>⚙️ 核心經營假設 (Core Assumptions)</h3>", unsafe_allow_html=True)
 a1, a2, a3, a4, a5 = st.columns(5)
-with a1: custom_metric("客單價", f"${price:.2f}")
-with a2: custom_metric("預估 CPC", f"${cpc:.2f}")
-with a3: custom_metric("預估 CTR", f"{ctr}%")
-with a4: custom_metric("實際 CVR", f"{actual_cvr:.2f}%")
-with a5: custom_metric("廣告佔比", f"{ad_ratio}%")
-
-if firefighting:
-    st.error(f"⚠️ 偵測到店鋪權重流失：實際轉化率已從 {cvr}% 衰減至 {actual_cvr:.2f}% (-30%)")
+a1.metric("客單價", f"${price:.2f}")
+a2.metric("預估 CPC", f"${cpc:.2f}")
+a3.metric("預估 CTR", f"{ctr}%")
+a4.metric("實際 CVR", f"{actual_cvr:.2f}%", delta="-30% 權重懲罰" if firefighting else None, delta_color="inverse")
+a5.metric("廣告佔比", f"{ad_ratio}%")
 
 st.divider()
 
@@ -178,19 +153,19 @@ with col_l:
         textinfo = "text+label",
         marker = {"color": ["#FADBD8" if firefighting else "#E5ECF6", "#E74C3C" if firefighting else "#94B4DE", "#1F77B4"]}
     ))
-    fig_f.update_layout(showlegend=False, font=dict(size=18, color="white"), height=400, margin=dict(t=20, b=20))
+    fig_f.update_layout(showlegend=False, font=dict(size=18, color="white"), height=400)
     st.plotly_chart(fig_f, use_container_width=True)
 
 with col_r:
     st.write("### 🍰 營收結構佔比")
-    fig_p = px.pie(names=["廣告營收", "自然營收"], values=[ad_rev, org_rev], hole=0.4, 
+    fig_p = px.pie(names=["廣告營收", "自然營營收"], values=[ad_rev, org_rev], hole=0.4, 
                    color_discrete_sequence=['#E74C3C', '#2ECC71'] if firefighting else ['#1F77B4', '#2ECC71'])
     fig_p.update_traces(textinfo='percent+label', textfont_size=20)
-    fig_p.update_layout(font=dict(size=16), height=400, margin=dict(t=20, b=20))
+    fig_p.update_layout(font=dict(size=16), height=400)
     st.plotly_chart(fig_p, use_container_width=True)
 
 # 第四層：損益表 (80% 寬度)
-st.markdown("<h3 style='text-align: center; margin-top: 30px; margin-bottom: 20px;'>💵 專案 P&L 損益試算 (月度)</h3>", unsafe_allow_html=True)
+st.markdown("<h3 style='text-align: center;'>💵 專案 P&L 損益試算 (月度)</h3>", unsafe_allow_html=True)
 f_ref, f_fba, f_st, f_ret = round(target_rev*(amz_fee_rate/100), 2), round(total_units*7.0, 2), round(total_units*1.5, 2), round(target_rev*0.05, 2)
 total_cogs = round(total_units * cogs, 2)
 net_p = round(target_rev - (total_cogs + f_ref + f_fba + f_st + f_ret + total_budget), 2)
@@ -204,8 +179,8 @@ st.table(pl_df.style.format({"金額": "{:,.2f}"}))
 
 # 底部淨利看板
 st.markdown(f"""
-<div style='background-color: {"#C0392B" if net_p < 0 else "#1F77B4"}; padding: 30px; border-radius: 15px; text-align: center; color: white; box-shadow: 0 4px 10px rgba(0,0,0,0.2); max-width: 80%; margin: 30px auto;'>
-    <h1 style='margin:0; font-size: 42px; color: white; font-family: Arial, sans-serif;'>✨ 預估專案淨利: ${net_p:,.2f}</h1>
-    <h3 style='margin:10px 0 0 0; color: #D1E8FF; font-family: Arial, sans-serif;'>獲利率 (Net Margin): {(net_p/target_rev*100 if target_rev > 0 else 0):.2f}%</h3>
+<div style='background-color: {"#C0392B" if net_p < 0 else "#1F77B4"}; padding: 30px; border-radius: 15px; text-align: center; color: white; box-shadow: 0 4px 10px rgba(0,0,0,0.2);'>
+    <h1 style='margin:0; font-size: 42px; color: white;'>✨ 預估專案淨利: ${net_p:,.2f}</h1>
+    <h3 style='margin:10px 0 0 0; color: #D1E8FF;'>獲利率 (Net Margin): {(net_p/target_rev*100 if target_rev > 0 else 0):.2f}%</h3>
 </div>
 """, unsafe_allow_html=True)
