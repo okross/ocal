@@ -11,16 +11,38 @@ st.set_page_config(page_title="亞馬遜專案數據推演 Dashboard by 歐可",
 
 st.markdown("""
     <style>
-    div[data-testid="stMetricValue"] { font-size: 28px !important; font-family: 'Source Sans Pro', sans-serif !important; }
-    div[data-testid="stMetricLabel"] { font-size: 16px !important; }
-    [data-testid="stTable"] { max-width: 80% !important; margin: auto !important; }
-    [data-testid="stMetric"], .stMarkdown, .stDivider { max-width: 90%; margin: auto; }
-    [data-testid="column"], div[style*="background-color"] { max-width: 80% !important; margin: auto !important; }
-    .stTable { font-size: 18px !important; }
-    .left-title { text-align: left; max-width: 80%; margin: 20px auto 10px auto; font-weight: bold; }
+    /* 1. 指標數值字型優化，確保 0 不帶點並支援深淺模式 */
+    [data-testid="stMetricValue"] {
+        font-family: 'Source Sans Pro', 'Helvetica Neue', Helvetica, Arial, sans-serif !important;
+        font-size: 32px !important;
+    }
+    
+    /* 2. 寬度控制：上半段指標 90% */
+    [data-testid="stMetric"], .stDivider {
+        max-width: 90%;
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    /* 3. 寬度控制：圖表與表格 80% */
+    [data-testid="column"], [data-testid="stTable"], div[style*="background-color"] {
+        max-width: 80% !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+    }
+
+    /* 4. 標題靠左對齊樣式 */
+    .left-title {
+        text-align: left;
+        max-width: 80%;
+        margin: 20px auto 10px auto;
+        font-weight: bold;
+    }
+
     @media print {
         [data-testid="stSidebar"], header, footer { display: none !important; }
         .main .block-container { max-width: 100% !important; padding: 0 !important; margin: 0 !important; }
+        div[style*="background-color"] { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
     }
     </style>
     """, unsafe_allow_html=True)
@@ -40,6 +62,7 @@ with st.sidebar:
     
     stage = st.selectbox("產品所處階段", ["🌱 初期 (Launch)", "🚀 成長期 (Growth)", "🌳 成熟期 (Mature)"], key="stage_select")
 
+    # 階段連動
     if stage != st.session_state.stage_prev:
         if stage == "🌱 初期 (Launch)":
             st.session_state.current_ctr, st.session_state.current_cvr, st.session_state.current_ad_ratio, st.session_state.current_cpc = 0.35, 5.0, 90, 1.2
@@ -51,7 +74,6 @@ with st.sidebar:
 
     target_mode = st.radio("目標設定方式", ["🎯 直接輸入營收目標", "🍰 市場份額推算", "💰 給定固定預算倒算"])
     
-    # 營收輸入邏輯
     if target_mode == "💰 給定固定預算倒算":
         fixed_budget = st.number_input("每月固定預算 (USD)", value=1000.0)
         target_rev = 0 
@@ -66,25 +88,40 @@ with st.sidebar:
     cogs = st.number_input("單件成本 (COGS+頭程)", value=0.0)
     amz_fee_rate = st.number_input("亞馬遜抽成率 (%)", value=15.0)
     st.caption(f"💡 單件抽成: **${(price * amz_fee_rate / 100):.2f}**")
-    
     ret_rate = st.number_input("預估退貨率 (%)", value=5.0)
     st.caption(f"💡 單件退貨耗損: **${(price * ret_rate / 100):.2f}**")
     
-    # --- 費用補回區 ---
+    st.markdown("---")
+    st.subheader("📦 庫存與倉儲成本")
     fba_fee = st.number_input("單件 FBA 配送費 (USD)", value=7.0)
-    storage_fee = st.number_input("單件月度倉儲費 (USD)", value=0.8)
-    placement_fee = st.number_input("單件入庫配置費/分倉費 (USD)", value=0.7)
+    storage_fee_base = st.number_input("淡季單件月倉儲費 (USD)", value=0.31)
+    placement_fee = st.number_input("單件入庫配置費/分倉費 (USD)", value=0.70)
     
+    # 庫存周轉預警邏輯
+    storage_days = st.slider("預估庫存周轉天數", 15, 180, 45, step=5)
+    if storage_days <= 60:
+        st.success(f"✅ 周轉健康 ({storage_days}天)")
+    elif storage_days <= 120:
+        st.warning(f"⚠️ 周轉稍慢 ({storage_days}天)")
+    else:
+        st.error(f"🚨 警告：周轉過慢")
+
+    # 倉儲費加權平均 (9個月淡季 + 3個月旺季3倍)
+    avg_storage_fee = (storage_fee_base * 9 + (storage_fee_base * 3 * 3)) / 12
+    actual_unit_storage = (avg_storage_fee * (storage_days / 30)) + placement_fee
+    st.caption(f"📊 加權後單件持倉成本: **${actual_unit_storage:,.2f}**")
+
     st.markdown("---")
     st.subheader("📅 年度收益預測")
     calc_period = st.radio("計算範圍", ["整年 (12個月)", "到日曆年底"])
     q4_boost = st.slider("Q4 (10-12月) 營收預期增幅 (%)", 0, 300, 50)
 
     st.markdown("---")
-    st.subheader("📊 流量參數")
+    st.subheader("📊 流量與廣告參數")
     cpc = st.number_input("預估 CPC (USD)", value=st.session_state.current_cpc)
     ctr = st.number_input("預估 CTR (%)", value=st.session_state.current_ctr)
     cvr = st.number_input("預估 CVR (%)", value=st.session_state.current_cvr)
+    
     actual_cvr = cvr * 0.7 if firefighting else cvr
     ad_ratio = st.slider("廣告單佔比 (%)", 0, 100, 95 if firefighting else st.session_state.current_ad_ratio)
     ppc_ratio = st.slider("站內 PPC 佔總預算比 (%)", 0, 100, 70)
@@ -110,21 +147,20 @@ ad_rev = ad_units * price
 org_rev = target_rev - ad_rev
 tacos = (total_budget / target_rev * 100) if target_rev > 0 else 0
 
-# 月度 P&L
+# 月度 P&L 計算
 f_ref = round(target_rev * (amz_fee_rate/100), 2)
 f_fba_total = round(total_units * fba_fee, 2)
-f_storage_total = round(total_units * (storage_fee + placement_fee), 2) # 合併倉儲與分倉
+f_storage_weighted = round(total_units * actual_unit_storage, 2)
 f_ret_total = round(target_rev * (ret_rate / 100), 2)
 total_cogs = round(total_units * cogs, 2)
-monthly_net_profit = round(target_rev - (total_cogs + f_ref + f_fba_total + f_storage_total + f_ret_total + total_budget), 2)
+monthly_net_profit = round(target_rev - (total_cogs + f_ref + f_fba_total + f_storage_weighted + f_ret_total + total_budget), 2)
 
-# 年度收益
+# 年度收益計算
 current_month = datetime.now().month
 months_left = 12 - current_month + 1 if calc_period == "到日曆年底" else 12
 annual_rev, annual_net = 0, 0
 for m in range(current_month if calc_period == "到日曆年底" else 1, 13):
-    is_q4 = m in [10, 11, 12]
-    boost = (1 + q4_boost / 100) if is_q4 else 1
+    boost = (1 + q4_boost / 100) if m in [10, 11, 12] else 1
     annual_rev += target_rev * boost
     annual_net += monthly_net_profit * boost
 
@@ -132,6 +168,7 @@ for m in range(current_month if calc_period == "到日曆年底" else 1, 13):
 # 4. 主畫面 Dashboard
 # ==========================================
 st.title("📊 亞馬遜專案數據推演 Dashboard by 歐可")
+st.write("")
 st.write("")
 
 c1, c2, c3, c4 = st.columns(4)
@@ -147,8 +184,8 @@ a1, a2, a3, a4, a5 = st.columns(5)
 a1.metric("客單價", f"${price:.2f}")
 a2.metric("預估 CPC", f"${cpc:.2f}")
 a3.metric("預估 CTR", f"{ctr}%")
-a4.metric("實際 CVR", f"{actual_cvr:.2f}%")
-a5.metric("廣告佔比", f"{ad_ratio}%")
+a4.metric("實際 CVR", f"{actual_cvr:.2f}%", delta="-30% 權重懲罰" if firefighting else None, delta_color="inverse")
+a5.metric("周轉天數", f"{storage_days} 天")
 
 st.divider()
 
@@ -173,15 +210,15 @@ with col_r:
     fig_p.update_layout(font=dict(size=14), height=400, legend=dict(orientation="h", y=-0.2, x=0.5, xanchor="center"))
     st.plotly_chart(fig_p, use_container_width=True)
 
-st.markdown("<div class='left-title'><h3>💵 專案 P&L 損益試算 (月度)</h3></div>", unsafe_allow_html=True)
+st.markdown("<div class='left-title'><h3>💵 專案 P&L 損益試算 (月度加權平均)</h3></div>", unsafe_allow_html=True)
 pl_df = pd.DataFrame({
-    "項目": ["總營收", "產品成本", f"平台抽成({amz_fee_rate}%)", "FBA配送費", "倉儲+分倉費", f"退貨損耗({ret_rate}%)", "站內廣告(PPC)", "站外行銷(Marketing)"],
-    "金額": [target_rev, -total_cogs, -f_ref, -f_fba_total, -f_storage_total, -f_ret_total, -(total_budget * ppc_ratio/100), -(total_budget * (1-ppc_ratio/100))]
+    "項目": ["總營收", "產品成本", f"平台抽成({amz_fee_rate}%)", "FBA配送費", "平均倉儲+分倉費", f"退貨損耗({ret_rate}%)", "站內廣告(PPC)", "站外行銷(Marketing)"],
+    "金額": [target_rev, -total_cogs, -f_ref, -f_fba_total, -f_storage_weighted, -f_ret_total, -(total_budget * ppc_ratio/100), -(total_budget * (1-ppc_ratio/100))]
 })
 pl_df["佔比"] = (abs(pl_df["金額"]) / (target_rev if target_rev > 0 else 1) * 100).map("{:.2f}%".format)
 st.table(pl_df.style.format({"金額": "{:,.2f}"}))
 
-# --- 底部複合看板 ---
+# 底部複合看板
 st.markdown(f"""
 <div style='background-color: {"#C0392B" if monthly_net_profit < 0 else "#1F77B4"}; padding: 30px; border-radius: 15px; text-align: center; color: white; box-shadow: 0 4px 10px rgba(0,0,0,0.2);'>
     <div style='display: flex; justify-content: space-around; align-items: center;'>
