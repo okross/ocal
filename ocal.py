@@ -51,6 +51,7 @@ with st.sidebar:
 
     target_mode = st.radio("目標設定方式", ["🎯 直接輸入營收目標", "🍰 市場份額推算", "💰 給定固定預算倒算"])
     
+    # 營收輸入邏輯
     if target_mode == "💰 給定固定預算倒算":
         fixed_budget = st.number_input("每月固定預算 (USD)", value=1000.0)
         target_rev = 0 
@@ -65,14 +66,19 @@ with st.sidebar:
     cogs = st.number_input("單件成本 (COGS+頭程)", value=0.0)
     amz_fee_rate = st.number_input("亞馬遜抽成率 (%)", value=15.0)
     st.caption(f"💡 單件抽成: **${(price * amz_fee_rate / 100):.2f}**")
+    
     ret_rate = st.number_input("預估退貨率 (%)", value=5.0)
     st.caption(f"💡 單件退貨耗損: **${(price * ret_rate / 100):.2f}**")
     
+    # --- 費用補回區 ---
+    fba_fee = st.number_input("單件 FBA 配送費 (USD)", value=7.0)
+    storage_fee = st.number_input("單件月度倉儲費 (USD)", value=0.8)
+    placement_fee = st.number_input("單件入庫配置費/分倉費 (USD)", value=0.7)
+    
     st.markdown("---")
-    st.subheader("📅 年度/救火預測設定")
+    st.subheader("📅 年度收益預測")
     calc_period = st.radio("計算範圍", ["整年 (12個月)", "到日曆年底"])
     q4_boost = st.slider("Q4 (10-12月) 營收預期增幅 (%)", 0, 300, 50)
-    st.caption("💡 建議：Q4 營收通常會成長 50%~150%，但廣告與倉儲成本亦會增加。")
 
     st.markdown("---")
     st.subheader("📊 流量參數")
@@ -86,7 +92,6 @@ with st.sidebar:
 # ==========================================
 # 3. 核心運算邏輯
 # ==========================================
-# 月度基礎運算
 if target_mode == "💰 給定固定預算倒算":
     ppc_part = fixed_budget * (ppc_ratio / 100)
     clicks = ppc_part / cpc if cpc > 0 else 0
@@ -105,29 +110,23 @@ ad_rev = ad_units * price
 org_rev = target_rev - ad_rev
 tacos = (total_budget / target_rev * 100) if target_rev > 0 else 0
 
-# P&L 費用計算 (月度)
-f_ref, f_fba, f_st, f_ret = round(target_rev*(amz_fee_rate/100), 2), round(total_units*7.0, 2), round(total_units*1.5, 2), round(target_rev*(ret_rate/100), 2)
+# 月度 P&L
+f_ref = round(target_rev * (amz_fee_rate/100), 2)
+f_fba_total = round(total_units * fba_fee, 2)
+f_storage_total = round(total_units * (storage_fee + placement_fee), 2) # 合併倉儲與分倉
+f_ret_total = round(target_rev * (ret_rate / 100), 2)
 total_cogs = round(total_units * cogs, 2)
-monthly_net_profit = round(target_rev - (total_cogs + f_ref + f_fba + f_st + f_ret + total_budget), 2)
+monthly_net_profit = round(target_rev - (total_cogs + f_ref + f_fba_total + f_storage_total + f_ret_total + total_budget), 2)
 
-# --- 年度收益估算邏輯 ---
+# 年度收益
 current_month = datetime.now().month
 months_left = 12 - current_month + 1 if calc_period == "到日曆年底" else 12
-
-# 簡單預估：假設 Q4 以外的月份為基準，Q4 月份營收上調
-annual_rev = 0
-annual_net = 0
-
+annual_rev, annual_net = 0, 0
 for m in range(current_month if calc_period == "到日曆年底" else 1, 13):
     is_q4 = m in [10, 11, 12]
     boost = (1 + q4_boost / 100) if is_q4 else 1
-    
-    # 假設 Q4 成本隨營收比例增加 (保守估計淨利率不變)
-    m_rev = target_rev * boost
-    m_net = monthly_net_profit * boost
-    
-    annual_rev += m_rev
-    annual_net += m_net
+    annual_rev += target_rev * boost
+    annual_net += monthly_net_profit * boost
 
 # ==========================================
 # 4. 主畫面 Dashboard
@@ -148,7 +147,7 @@ a1, a2, a3, a4, a5 = st.columns(5)
 a1.metric("客單價", f"${price:.2f}")
 a2.metric("預估 CPC", f"${cpc:.2f}")
 a3.metric("預估 CTR", f"{ctr}%")
-a4.metric("實際 CVR", f"{actual_cvr:.2f}%", delta="-30% 權重懲罰" if firefighting else None, delta_color="inverse")
+a4.metric("實際 CVR", f"{actual_cvr:.2f}%")
 a5.metric("廣告佔比", f"{ad_ratio}%")
 
 st.divider()
@@ -170,30 +169,30 @@ with col_r:
     st.write("### 🍰 營收結構佔比")
     fig_p = px.pie(names=["廣告營收", "自然營收"], values=[ad_rev, org_rev], hole=0.4, 
                    color_discrete_sequence=['#E74C3C', '#2ECC71'] if firefighting else ['#1F77B4', '#2ECC71'])
-    fig_p.update_traces(textinfo='percent+label', textfont_size=20, textposition='outside')
+    fig_p.update_traces(textinfo='percent+label', textfont_size=18, textposition='outside')
     fig_p.update_layout(font=dict(size=14), height=400, legend=dict(orientation="h", y=-0.2, x=0.5, xanchor="center"))
     st.plotly_chart(fig_p, use_container_width=True)
 
 st.markdown("<div class='left-title'><h3>💵 專案 P&L 損益試算 (月度)</h3></div>", unsafe_allow_html=True)
 pl_df = pd.DataFrame({
-    "項目": ["總營收", "產品成本", f"平台抽成({amz_fee_rate}%)", "FBA費用", "倉儲分倉", f"退貨損耗({ret_rate}%)", "站內廣告(PPC)", "站外行銷(Marketing)"],
-    "金額": [target_rev, -total_cogs, -f_ref, -f_fba, -f_st, -f_ret, -(total_budget * ppc_ratio/100), -(total_budget * (1-ppc_ratio/100))]
+    "項目": ["總營收", "產品成本", f"平台抽成({amz_fee_rate}%)", "FBA配送費", "倉儲+分倉費", f"退貨損耗({ret_rate}%)", "站內廣告(PPC)", "站外行銷(Marketing)"],
+    "金額": [target_rev, -total_cogs, -f_ref, -f_fba_total, -f_storage_total, -f_ret_total, -(total_budget * ppc_ratio/100), -(total_budget * (1-ppc_ratio/100))]
 })
-pl_df["佔比"] = (abs(pl_df["金額"]) / target_rev * 100).map("{:.2f}%".format)
+pl_df["佔比"] = (abs(pl_df["金額"]) / (target_rev if target_rev > 0 else 1) * 100).map("{:.2f}%".format)
 st.table(pl_df.style.format({"金額": "{:,.2f}"}))
 
-# --- 底部複合看板 (預估月淨利 + 年度收益) ---
+# --- 底部複合看板 ---
 st.markdown(f"""
 <div style='background-color: {"#C0392B" if monthly_net_profit < 0 else "#1F77B4"}; padding: 30px; border-radius: 15px; text-align: center; color: white; box-shadow: 0 4px 10px rgba(0,0,0,0.2);'>
     <div style='display: flex; justify-content: space-around; align-items: center;'>
         <div style='flex: 1; border-right: 1px solid rgba(255,255,255,0.3);'>
-            <p style='margin:0; font-size: 18px; color: #D1E8FF;'>預估每月營收 / 淨利</p>
+            <p style='margin:0; font-size: 18px; color: #D1E8FF;'>預估每月目標營收 / 淨利</p>
             <h1 style='margin:0; font-size: 36px; color: white;'>${target_rev:,.2f} / ${monthly_net_profit:,.2f}</h1>
         </div>
         <div style='flex: 1;'>
-            <p style='margin:0; font-size: 18px; color: #D1E8FF;'>預估 {calc_period} 累積收益 ({months_left}個月)</p>
+            <p style='margin:0; font-size: 18px; color: #D1E8FF;'>預估 {calc_period} 累積淨利 ({months_left}個月)</p>
             <h1 style='margin:0; font-size: 42px; color: #FFD700;'>${annual_net:,.2f}</h1>
-            <p style='margin:0; font-size: 14px; opacity: 0.8;'>總營收預估: ${annual_rev:,.2f} (含 Q4 增幅 {q4_boost}%)</p>
+            <p style='margin:0; font-size: 14px; opacity: 0.8;'>總營收估計: ${annual_rev:,.2f} (含 Q4 增幅 {q4_boost}%)</p>
         </div>
     </div>
 </div>
