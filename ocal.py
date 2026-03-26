@@ -140,6 +140,8 @@ st.divider()
 
 # 第二層：核心假設
 st.markdown("<h3 style='text-align: center;'>⚙️ 核心經營假設 (Core Assumptions)</h3>", unsafe_allow_html=True)
+st.write("")
+
 a1, a2, a3, a4, a5 = st.columns(5)
 a1.metric("客單價", f"${price:.2f}", delta="Price", delta_color="off")
 a2.metric("預估 CPC", f"${cpc:.2f}", delta="CPC", delta_color="off")
