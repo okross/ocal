@@ -4,37 +4,43 @@ import plotly.express as px
 import plotly.graph_objects as go
 
 # ==========================================
-# 1. 頁面設定與 UI 比例優化 (支援深淺模式)
+# 1. 頁面設定與 UI 比例優化
 # ==========================================
 st.set_page_config(page_title="亞馬遜專案數據推演 Dashboard by 歐可", layout="wide")
 
 st.markdown("""
     <style>
-    /* 1. 強制所有指標數值使用標準字體，解決「帶點的 0」問題，但不鎖死顏色以支援深淺模式 */
+    /* 1. 指標數值字型優化，支援深淺模式 */
     [data-testid="stMetricValue"] {
         font-family: 'Source Sans Pro', 'Helvetica Neue', Helvetica, Arial, sans-serif !important;
         font-size: 32px !important;
     }
     
-    /* 2. 上半段指標與文字區塊設定為 90% 寬度並置中 */
-    [data-testid="stMetric"], .stMarkdown, .stDivider {
+    /* 2. 寬度控制：上半段指標 90% */
+    [data-testid="stMetric"], .stDivider {
         max-width: 90%;
         margin-left: auto;
         margin-right: auto;
     }
 
-    /* 3. 中間圖表與底部 P&L 統一設定為 80% 寬度並置中 */
+    /* 3. 寬度控制：圖表與表格 80% */
     [data-testid="column"], [data-testid="stTable"], div[style*="background-color"] {
         max-width: 80% !important;
         margin-left: auto !important;
         margin-right: auto !important;
     }
 
-    /* 4. 列印優化 */
+    /* 4. 標題靠左對齊優化 */
+    .left-title {
+        text-align: left;
+        max-width: 80%;
+        margin: 20px auto 10px auto;
+        font-weight: bold;
+    }
+
     @media print {
         [data-testid="stSidebar"], header, footer { display: none !important; }
         .main .block-container { max-width: 100% !important; padding: 0 !important; margin: 0 !important; }
-        div[style*="background-color"] { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
     }
     </style>
     """, unsafe_allow_html=True)
@@ -51,7 +57,6 @@ if 'stage_prev' not in st.session_state:
 with st.sidebar:
     st.header("🎛️ 參數控制台")
     firefighting = st.toggle("🔥 開啟「救火/消極經營」診斷模式", value=False)
-    
     stage = st.selectbox("產品所處階段", ["🌱 初期 (Launch)", "🚀 成長期 (Growth)", "🌳 成熟期 (Mature)"], key="stage_select")
 
     if stage != st.session_state.stage_prev:
@@ -63,8 +68,7 @@ with st.sidebar:
             st.session_state.current_ctr, st.session_state.current_cvr, st.session_state.current_ad_ratio, st.session_state.current_cpc = 0.75, 15.0, 30, 0.8
         st.session_state.stage_prev = stage
 
-    target_mode = st.radio("設定方式", ["🎯 直接輸入營收目標", "🍰 市場份額推算", "💰 給定固定預算倒算"])
-    
+    target_mode = st.radio("設定方式", ["🎯 直接輸入營營收目標", "🍰 市場份額推算", "💰 給定固定預算倒算"])
     if target_mode == "💰 給定固定預算倒算":
         fixed_budget = st.number_input("每月固定預算 (USD)", value=1000.0)
         target_rev = 0 
@@ -79,7 +83,6 @@ with st.sidebar:
     cogs = st.number_input("單件成本 (COGS+頭程)", value=0.0)
     amz_fee_rate = st.number_input("亞馬遜抽成率 (%)", value=15.0)
     st.caption(f"💡 單件抽成: **${(price * amz_fee_rate / 100):.2f}**")
-    
     ret_rate = st.number_input("預估退貨率 (%)", value=5.0)
     st.caption(f"💡 單件退貨耗損: **${(price * ret_rate / 100):.2f}**")
     
@@ -87,7 +90,6 @@ with st.sidebar:
     cpc = st.number_input("預估 CPC (USD)", value=st.session_state.current_cpc)
     ctr = st.number_input("預估 CTR (%)", value=st.session_state.current_ctr)
     cvr = st.number_input("預估 CVR (%)", value=st.session_state.current_cvr)
-    
     actual_cvr = cvr * 0.7 if firefighting else cvr
     ad_ratio = st.slider("廣告單佔比 (%)", 0, 100, 95 if firefighting else st.session_state.current_ad_ratio)
     ppc_ratio = st.slider("站內 PPC 佔總預算比 (%)", 0, 100, 70)
@@ -120,7 +122,7 @@ st.title("📊 亞馬遜專案數據推演 Dashboard by 歐可")
 st.write("")
 st.write("")
 
-# 第一層：指標 (回歸原生 st.metric)
+# 第一層：指標
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("目標總營收", f"${target_rev:,.2f}")
 c2.metric("營收結構 (Ad/Org)", f"${ad_rev:,.0f} / ${org_rev:,.0f}")
@@ -129,8 +131,8 @@ c4.metric("預估 TACOS", f"{tacos:.2f}%")
 
 st.divider()
 
-# 第二層：核心假設
-st.markdown("<h3 style='text-align: center;'>⚙️ 核心經營假設 (Core Assumptions)</h3>", unsafe_allow_html=True)
+# 第二層：核心假設 (標題靠左)
+st.markdown("<div class='left-title'><h3>⚙️ 核心經營假設 (Core Assumptions)</h3></div>", unsafe_allow_html=True)
 a1, a2, a3, a4, a5 = st.columns(5)
 a1.metric("客單價", f"${price:.2f}")
 a2.metric("預估 CPC", f"${cpc:.2f}")
@@ -140,7 +142,7 @@ a5.metric("廣告佔比", f"{ad_ratio}%")
 
 st.divider()
 
-# 第三層：圖表 (80% 寬度)
+# 第三層：圖表
 col_l, col_r = st.columns(2)
 with col_l:
     st.write("### 🛒 流量漏斗 (預估廣告路徑)")
@@ -158,14 +160,14 @@ with col_l:
 
 with col_r:
     st.write("### 🍰 營收結構佔比")
-    fig_p = px.pie(names=["廣告營收", "自然營營收"], values=[ad_rev, org_rev], hole=0.4, 
+    fig_p = px.pie(names=["廣告營收", "自然營收"], values=[ad_rev, org_rev], hole=0.4, 
                    color_discrete_sequence=['#E74C3C', '#2ECC71'] if firefighting else ['#1F77B4', '#2ECC71'])
     fig_p.update_traces(textinfo='percent+label', textfont_size=20)
     fig_p.update_layout(font=dict(size=16), height=400)
     st.plotly_chart(fig_p, use_container_width=True)
 
-# 第四層：損益表 (80% 寬度)
-st.markdown("<h3 style='text-align: center;'>💵 專案 P&L 損益試算 (月度)</h3>", unsafe_allow_html=True)
+# 第四層：損益表 (標題靠左)
+st.markdown("<div class='left-title'><h3>💵 專案 P&L 損益試算 (月度)</h3></div>", unsafe_allow_html=True)
 f_ref, f_fba, f_st, f_ret = round(target_rev*(amz_fee_rate/100), 2), round(total_units*7.0, 2), round(total_units*1.5, 2), round(target_rev*0.05, 2)
 total_cogs = round(total_units * cogs, 2)
 net_p = round(target_rev - (total_cogs + f_ref + f_fba + f_st + f_ret + total_budget), 2)
