@@ -10,15 +10,20 @@ st.set_page_config(page_title="亞馬遜專案數據推演 Dashboard by 歐可",
 
 st.markdown("""
     <style>
-    /* 強制所有指標數值字型大小一致，避免自動縮放導致不整齊 */
-    div[data-testid="stMetricValue"] {
-        font-size: 28px !important;
-        font-family: 'Source Sans Pro', sans-serif !important;
-    }
-    div[data-testid="stMetricLabel"] {
-        font-size: 16px !important;
+    /* 強制鎖定所有指標數值的字型與樣式，消除字體不一問題 */
+    [data-testid="stMetricValue"] {
+        font-size: 32px !important;
+        font-family: 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif !important;
+        font-weight: 700 !important;
+        color: #31333F !important; /* 統一為深灰色，避免自動變色 */
     }
     
+    /* 調整指標標籤字體 */
+    [data-testid="stMetricLabel"] {
+        font-size: 16px !important;
+        font-weight: 500 !important;
+    }
+
     /* P&L 表格設定為 80% 寬度並置中 */
     [data-testid="stTable"] {
         max-width: 80% !important;
@@ -26,14 +31,13 @@ st.markdown("""
         margin-right: auto !important;
     }
 
-    /* 核心指標與文字區塊同樣維持 90% 或 80% 比例 */
+    /* 其他區塊比例優化 */
     [data-testid="stMetric"], .stMarkdown, .stDivider {
         max-width: 90%;
         margin-left: auto;
         margin-right: auto;
     }
     
-    /* 中間圖表與底部看板統一 80% 寬度 */
     [data-testid="column"], div[style*="background-color"] {
         max-width: 80% !important;
         margin-left: auto !important;
@@ -128,10 +132,10 @@ st.title("📊 亞馬遜專案數據推演 Dashboard by 歐可")
 st.write("")
 st.write("")
 
-# 第一層：指標 (解決字型不一問題)
+# 第一層：指標 (解決字型不一與 0 帶點問題)
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("目標總營收", f"${target_rev:,.2f}")
-# 將長指標拆成兩行顯示，確保字體大小一致
+# 改用字串拼接，避開 st.metric 可能引發的自動字體切換
 c2.metric("營收結構 (Ad/Org)", f"${ad_rev:,.0f} / ${org_rev:,.0f}")
 c3.metric("總行銷預算", f"${total_budget:,.2f}")
 c4.metric("預估 TACOS", f"{tacos:.2f}%")
@@ -141,11 +145,15 @@ st.divider()
 # 第二層：核心假設
 st.markdown("<h3 style='text-align: center;'>⚙️ 核心經營假設 (Core Assumptions)</h3>", unsafe_allow_html=True)
 a1, a2, a3, a4, a5 = st.columns(5)
-a1.metric("客單價", f"${price:.2f}", delta="Price", delta_color="off")
-a2.metric("預估 CPC", f"${cpc:.2f}", delta="CPC", delta_color="off")
-a3.metric("預估 CTR", f"{ctr}%", delta="CTR", delta_color="off")
-a4.metric("實際 CVR", f"{actual_cvr:.2f}%", delta="-30% 權重懲罰" if firefighting else None, delta_color="inverse")
-a5.metric("廣告佔比", f"{ad_ratio}%", delta="Ad Ratio", delta_color="off")
+# 這裡將 delta 標記移除，改用統一的 metric 顯示，確保字體風格 100% 一致
+a1.metric("客單價 (Price)", f"${price:.2f}")
+a2.metric("預估 CPC", f"${cpc:.2f}")
+a3.metric("預估 CTR", f"{ctr}%")
+a4.metric("實際 CVR", f"{actual_cvr:.2f}%")
+a5.metric("廣告佔比", f"{ad_ratio}%")
+
+if firefighting:
+    st.error(f"⚠️ 偵測到店鋪權重流失：實際轉化率已從 {cvr}% 衰減至 {actual_cvr:.2f}% (-30%)")
 
 st.divider()
 
@@ -160,7 +168,7 @@ with col_l:
         x = [100, 75, 50], 
         text = [f"{f_imps:,.0f}", f"{f_clicks:,.1f}", f"{ad_units:,.1f}"],
         textinfo = "text+label",
-        marker = {"color": ["#FADBD8" if firefighting else "#E5ECF6", "#E74C3C" if firefighting else "#94B4DE", "#C0392B" if firefighting else "#1F77B4"]}
+        marker = {"color": ["#FADBD8" if firefighting else "#E5ECF6", "#E74C3C" if firefighting else "#94B4DE", "#1F77B4"]}
     ))
     fig_f.update_layout(showlegend=False, font=dict(size=18, color="white"), height=400)
     st.plotly_chart(fig_f, use_container_width=True)
@@ -189,7 +197,7 @@ st.table(pl_df.style.format({"金額": "{:,.2f}"}))
 # 底部淨利看板
 st.markdown(f"""
 <div style='background-color: {"#C0392B" if net_p < 0 else "#1F77B4"}; padding: 30px; border-radius: 15px; text-align: center; color: white; box-shadow: 0 4px 10px rgba(0,0,0,0.2);'>
-    <h1 style='margin:0; font-size: 42px; color: white;'>✨ 預估專案淨利: ${net_p:,.2f}</h1>
-    <h3 style='margin:10px 0 0 0; color: #D1E8FF;'>獲利率 (Net Margin): {(net_p/target_rev*100 if target_rev > 0 else 0):.2f}%</h3>
+    <h1 style='margin:0; font-size: 42px; color: white; font-family: sans-serif;'>✨ 預估專案淨利: ${net_p:,.2f}</h1>
+    <h3 style='margin:10px 0 0 0; color: #D1E8FF; font-family: sans-serif;'>獲利率 (Net Margin): {(net_p/target_rev*100 if target_rev > 0 else 0):.2f}%</h3>
 </div>
 """, unsafe_allow_html=True)
